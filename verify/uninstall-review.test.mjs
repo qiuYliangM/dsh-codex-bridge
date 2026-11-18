@@ -3,14 +3,14 @@ import { test } from 'node:test'
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { once } from 'node:events'
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { cleanupCodexRegistration, configureCodex, listCodexRegistrations, registrationLocation, registrationSecret } from '../src/codex-registration.js'
 import { migrateLegacyPatch } from '../src/legacy-migration.js'
 
 function fixture(t) {
-  const directory = mkdtempSync(join(tmpdir(), 'bridge uninstall '))
+  const directory = realpathSync.native(mkdtempSync(join(tmpdir(), 'bridge uninstall ')))
   t.after(() => rmSync(directory, { recursive: true, force: true }))
   const home = join(directory, 'codex'); mkdirSync(home)
   const file = join(home, 'config.toml'); writeFileSync(file, '# private user settings\n', { mode: 0o600 })
