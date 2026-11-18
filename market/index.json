@@ -1,0 +1,40 @@
+{
+  "format": 1,
+  "title": {
+    "en": "DSH Codex Bridge",
+    "zh": "DSH Codex Bridge 插件源"
+  },
+  "description": {
+    "en": "Maintainer index for the local DSH/Codex bridge.",
+    "zh": "DSH 与 Codex 本机协作桥的维护者插件源。"
+  },
+  "plugins": [
+    {
+      "name": "peerbridge-dsh-plugin",
+      "title": "DSH Codex Bridge",
+      "description": {
+        "en": "Bidirectional local messaging and explicit project/session management for DSH and Codex.",
+        "zh": "仅在 DSH 安装，提供与本机 Codex 的双向消息及显式工程、会话管理。"
+      },
+      "author": "qiuYliangM",
+      "homepage": "https://github.com/qiuYliangM/dsh-codex-bridge#readme",
+      "repository": {
+        "url": "https://github.com/qiuYliangM/dsh-codex-bridge"
+      },
+      "versions": [
+        {
+          "version": "0.5.2",
+          "publishTimestamp": 1795005928,
+          "source": {
+            "type": "git",
+            "url": "https://github.com/qiuYliangM/dsh-codex-bridge",
+            "commit": "87e99c88a162fbef7d1b666c73cd4cbdcf25c885"
+          },
+          "engines": {
+            "dsh": ">=0.2.2-rc.4 <0.3.0-0"
+          }
+        }
+      ]
+    }
+  ]
+}
