@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.build/
+.cache/
+coverage/
+.peerbridge/
+.env
+.env.*
+!.env.example
+*.log
+*.tgz
+*.deb
+*.tmp
+.DS_Store

@@ -1,0 +1,56 @@
+{
+  "name": "peerbridge-dsh-plugin",
+  "version": "0.5.2",
+  "description": "DSH Codex Bridge：仅在 DSH 安装的双向会话与工程协作插件",
+  "type": "module",
+  "main": "src/index.js",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/qiuYliangM/dsh-codex-bridge.git"
+  },
+  "homepage": "https://github.com/qiuYliangM/dsh-codex-bridge#readme",
+  "keywords": [
+    "deepseek-harness",
+    "dsh-plugin",
+    "codex",
+    "mcp",
+    "cordis"
+  ],
+  "engines": {
+    "node": ">=22.19.0",
+    "dsh": ">=0.2.2-rc.4 <0.3.0-0"
+  },
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.1.0",
+    "@deepseek-ai/dsh-tools": ">=0.2.2-rc.4 <0.3.0-0",
+    "@deepseek-ai/schemastery": "^3.19.0"
+  },
+  "files": [
+    "src/",
+    "vendor/",
+    "cordis.patch.yml",
+    "scripts/cleanup.mjs",
+    "README.md",
+    "LICENSE",
+    "SECURITY.md",
+    "docs/",
+    "CHANGELOG.md"
+  ],
+  "author": "qiuYliangM",
+  "bugs": {
+    "url": "https://github.com/qiuYliangM/dsh-codex-bridge/issues"
+  },
+  "scripts": {
+    "test": "node --test verify/*.test.mjs",
+    "package": "node scripts/pack.mjs",
+    "test:package": "node scripts/check-package.mjs",
+    "cleanup": "node scripts/cleanup.mjs"
+  }
+}

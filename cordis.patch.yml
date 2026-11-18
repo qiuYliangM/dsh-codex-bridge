@@ -1,0 +1,3 @@
+- insert:
+    - id: codex-deepseek-bridge
+      name: peerbridge-dsh-plugin
