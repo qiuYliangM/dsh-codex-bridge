@@ -24,11 +24,11 @@
       "versions": [
         {
           "version": "0.5.2",
-          "publishTimestamp": 1795005928,
+          "publishTimestamp": 1795006113,
           "source": {
             "type": "git",
             "url": "https://github.com/qiuYliangM/dsh-codex-bridge",
-            "commit": "87e99c88a162fbef7d1b666c73cd4cbdcf25c885"
+            "commit": "8d378aa85c5802a4b9696ef0a317de8edd7f28a9"
           },
           "engines": {
             "dsh": ">=0.2.2-rc.4 <0.3.0-0"
