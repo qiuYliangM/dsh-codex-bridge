@@ -23,6 +23,18 @@
       },
       "versions": [
         {
+          "version": "0.5.3",
+          "publishTimestamp": 1795774413,
+          "source": {
+            "type": "git",
+            "url": "https://github.com/qiuYliangM/dsh-codex-bridge",
+            "commit": "ccf14337ae8cde4a06b1a59ea38f94e55d963c7c"
+          },
+          "engines": {
+            "dsh": ">=0.2.2-rc.4 <0.3.0-0"
+          }
+        },
+        {
           "version": "0.5.2",
           "publishTimestamp": 1795006113,
           "source": {
