@@ -3,7 +3,7 @@ import { mkdirSync, readdirSync, realpathSync, statSync } from 'node:fs'
 import { basename, isAbsolute, join } from 'node:path'
 import { DshClient } from './dsh-client.js'
 import { withCodex, queueToCodex } from './codex-client.js'
-import { desktopExecutable, desktopProjectStatus, openDesktopProject, readDesktopProjects, waitForDesktopProject, workspaceCreationReceipt } from './codex-desktop.js'
+import { desktopExecutable, desktopProjectStatus, desktopSessionExecutable, desktopSessionUrl, openDesktopProject, readDesktopProjects, waitForDesktopProject, wakeDesktopSession, workspaceCreationReceipt } from './codex-desktop.js'
 import { dataDir, readJson, requireText, writeJson } from './state.js'
 
 function localDirectory(path, createDirectory) {
@@ -164,6 +164,7 @@ export class CodexAdapter {
   async sessions({ archived = false } = {}) {
     return this.rpc(async client => {
       const items = await pages(client, 'thread/list', { archived, modelProviders: [] })
+      const nativeIds = new Set(items.map(item => item.id))
       if (!archived) {
         const known = this.knownSessions()
         const missing = known.filter(id => !items.some(item => item.id === id))
@@ -180,8 +181,20 @@ export class CodexAdapter {
           }
         }
       }
-      return items.map(item => ({ ...codexSession(item), archived }))
+      return items.map(item => ({ ...codexSession(item), archived,
+        desktopSync: this.sessionDesktopStatus(item.id, nativeIds.has(item.id)),
+      }))
     })
+  }
+
+  sessionDesktopStatus(sessionId, nativeListVisible) {
+    let openUrl
+    try { if (desktopSessionExecutable(this.options)) openUrl = desktopSessionUrl(sessionId) } catch { /* No matching local desktop entry. */ }
+    return {
+      state: nativeListVisible === true ? 'listed' : nativeListVisible === false ? 'not-listed' : 'unverified',
+      nativeListVisible, verification: 'app-server-thread-list', liveUiVerified: false,
+      ...(openUrl ? { openUrl } : {}),
+    }
   }
 
   knownSessions() {
@@ -214,7 +227,12 @@ export class CodexAdapter {
         try { await client.call('thread/name/set', { threadId: session.sessionId, name: args.title }) }
         catch (error) { throw new Error(`会话已创建 ${session.sessionId}，但命名失败: ${error.message}`) }
       }
-      return { ...session, title: args.title || session.title, archived: false }
+      let nativeListVisible = null
+      try { nativeListVisible = (await pages(client, 'thread/list', { archived: false, modelProviders: [] })).some(item => item.id === session.sessionId) }
+      catch { /* Creation succeeded; a failed visibility probe must not invite duplicate creation. */ }
+      return { ...session, title: args.title || session.title, archived: false,
+        desktopSync: this.sessionDesktopStatus(session.sessionId, nativeListVisible),
+      }
     })
   }
 
@@ -226,7 +244,26 @@ export class CodexAdapter {
     await this.rpc(client => client.call(archived ? 'thread/archive' : 'thread/unarchive', { threadId }))
   }
 
-  async send(target, text) { return queueToCodex(target.sessionId, text, this.options.signal, this.options) }
+  async send(target, text) {
+    const receipt = await queueToCodex(target.sessionId, text, this.options.signal, this.options)
+    // Queue acceptance alone leaves a cold, empty thread invisible and idle.
+    // Request the desktop's existing background wake after the message is saved.
+    // A wake failure must retain the queue receipt so callers do not resend it.
+    try {
+      const executable = desktopSessionExecutable(this.options)
+      if (executable) {
+        await wakeDesktopSession(executable, target.sessionId, this.options)
+        return { ...receipt, desktopActivation: { state: 'requested', confirmed: false } }
+      }
+      return { ...receipt, desktopActivation: { state: 'unavailable', confirmed: false },
+        warning: '消息已排队，但当前没有匹配的本机 Codex 桌面入口。冷会话可能仍需由用户或宿主恢复；请勿重复发送。',
+      }
+    } catch (error) {
+      return { ...receipt, desktopActivation: { state: 'failed', confirmed: false, error: error.message },
+        warning: '消息已排队，但请求唤起 Codex 桌面失败。请打开已有会话或恢复宿主，不要重复发送消息。',
+      }
+    }
+  }
 }
 
 export function adapterFor(peer, options) {

@@ -2,14 +2,14 @@
 
 只在 **DeepSeek Harness 安装一次**的标准插件，连接本机 Codex 与 DSH，提供双向消息、工程和会话管理。启用时自动登记 Codex HTTP MCP，使用宿主运行时；无需第二个应用、常驻 Hub、全局 Node.js 或手工复制网关 token。
 
-独立项目来自 [Codex DeepSeek Bridge](https://github.com/qiuYliangM/codex-deepseek-bridge) 的插件分支。当前版本 **0.5.2**，包名继续使用 `peerbridge-dsh-plugin`，便于原插件升级；旧系统安装器不包含在本项目中。
+独立项目来自 [Codex DeepSeek Bridge](https://github.com/qiuYliangM/codex-deepseek-bridge) 的插件分支。当前版本 **0.5.3**，包名继续使用 `peerbridge-dsh-plugin`，便于原插件升级；旧系统安装器不包含在本项目中。
 
 ## 安装
 
 需要两个客户端安装在同一台机器、同一 OS 用户下，且 Codex CLI 可用。兼容 DSH `>=0.2.2-rc.4 <0.3.0-0`、Node.js 22.19+ 的宿主。其他宿主版本会由安装器检查兼容性，不建议强制跳过。
 
 ```sh
-dsh plugin --profile desktop add github:qiuYliangM/dsh-codex-bridge#v0.5.2
+dsh plugin --profile desktop add github:qiuYliangM/dsh-codex-bridge#v0.5.3
 ```
 
 Web 版把 `desktop` 改成 `web`。此仓库根目录就是可安装的 bundle，没有安装期构建脚本。首次启用后重载 Codex 工具；宿主提示需要重启时重启 DSH。安装过程不发送模型消息。
@@ -17,9 +17,9 @@ Web 版把 `desktop` 改成 `web`。此仓库根目录就是可安装的 bundle�
 也可下载 [发布包](https://github.com/qiuYliangM/dsh-codex-bridge/releases)。DSH Desktop 0.31.7 启动时会误清理本地 `.tgz` 依赖，请先解压到长期保留的目录，再通过插件页或 CLI 安装目录：
 
 ```sh
-mkdir -p ~/.local/share/dsh-codex-bridge/0.5.2
-tar -xzf /path/to/peerbridge-dsh-plugin-0.5.2.tgz --strip-components=1 -C ~/.local/share/dsh-codex-bridge/0.5.2
-dsh plugin --profile desktop add ~/.local/share/dsh-codex-bridge/0.5.2
+mkdir -p ~/.local/share/dsh-codex-bridge/0.5.3
+tar -xzf /path/to/peerbridge-dsh-plugin-0.5.3.tgz --strip-components=1 -C ~/.local/share/dsh-codex-bridge/0.5.3
+dsh plugin --profile desktop add ~/.local/share/dsh-codex-bridge/0.5.3
 ```
 
 保留该目录，升级使用新版本目录。不要同时启用旧 stdio 桥与新 bundle；旧安装器拥有的标记 patch 会迁移。源代码和发布包均不包含两个客户端或账户凭据。
@@ -48,6 +48,8 @@ dsh plugin --profile desktop add ~/.local/share/dsh-codex-bridge/0.5.2
 原生 Codex MCP 每次请求的 `_meta.threadId` 和 DSH 工具执行上下文自动提供来源会话。手填 `sourceSession` 与宿主来源冲突会报错。HTTP MCP 的连接会话 ID 不用于识别聊天。来源标签不是身份认证；返回目标仍需显式传入，结构化收件箱与 `peer_reply` 尚未实现。
 
 新工程不会生成代码或发开场消息。Codex 桌面登记通过现有目录入口，可能选中工程并需要用户信任；不修改客户端二进制或状态文件。后台登记和桌面名称同步分开报告，未完成时不会声称成功。详情见 [运行边界](docs/behavior.md)。
+
+Codex 新建空会话可能不进入原生聊天列表。创建回执的 `created: true` 只表示后台创建，`completed: false` 与 `session.desktopSync` 单独说明界面尚未确认；桥接列表补全出的空会话会标为 `not-listed`。匹配本机桌面时提供 `openUrl`。向该会话发送消息后，插件通过 Codex 现有的后台唤起入口请求处理队列，不切换当前聊天；`desktopActivation.state: requested` 仍不是收件确认。未找到桌面入口或唤起失败时保留原入队回执并提示，不重复发送。详见 [界面同步检查](docs/ui-sync.md)。
 
 ## 配置与共存
 
@@ -86,6 +88,6 @@ npm run test:package
 
 测试使用隔离目录和模拟客户端；默认不访问日常聊天，不发送模型消息。可用 `PEERBRIDGE_TEST_CODEX_BIN=/path/to/codex npm test` 验证真实 Codex 配置和元数据。完整隔离 DSH 安装/停用/重装/卸载验证见 [测试说明](docs/testing.md)。
 
-产物 `dist/peerbridge-dsh-plugin-0.5.2.tgz` 与 `PLUGIN-SHA256SUMS`。运行时代码在 `src/`，依赖的 `ws` 源码和 MIT 许可证位于 `vendor/`。
+产物 `dist/peerbridge-dsh-plugin-0.5.3.tgz` 与 `PLUGIN-SHA256SUMS`。运行时代码在 `src/`，依赖的 `ws` 源码和 MIT 许可证位于 `vendor/`。
 
 [MIT](LICENSE) · [安全边界](SECURITY.md) · [审核记录](docs/review.md)

@@ -42,7 +42,7 @@ MCP 的目标错误（旧项目消息 CLI 亦然）包含 `code`、`message`、`
 | `peer_create_workspace` | `path` | 登记本机目录；目录不存在时须显式指定 `createDirectory: true` |
 | `peer_rename_workspace` | `workspace` | 修改后台工程名，保留目录路径；Codex 桌面名称未同步时返回未完成 |
 | `peer_sessions` | `workspace` | 列出工程会话；`archived: true` 查看归档 |
-| `peer_create_session` | `workspace` | 创建空会话，返回其 ID |
+| `peer_create_session` | `workspace` | 创建空会话，返回其 ID；Codex 单独报告原生列表与界面核验状态 |
 | `peer_rename_session` | `workspace`、`session` | 修改会话名称 |
 | `peer_archive_session` | `workspace`、`session` | `archived: true/false` 归档或恢复，保留历史和文件 |
 | `peer_send` | `workspace`、`session` | 消息入队，回执不代表任务已完成 |
@@ -63,9 +63,9 @@ Codex 的原生 MCP 调用通过每次请求的 `_meta.threadId` 自动提供来
 ## 实现与边界
 
 - Codex → DSH：调用插件内的鉴权 HTTP MCP；插件使用宿主当前网关凭据执行工程和会话操作，WebSocket `workspace/follow` 获取注册表快照，`session/prompt` 入队。
-- DSH → Codex：按需运行 `codex app-server --listen stdio://`，调用 `project/*`、`thread/*`；消息使用 `codex queue`。配置 `codexSocket` 可改用已运行 daemon 的 `app-server proxy`。
+- DSH → Codex：按需运行 `codex app-server --listen stdio://`，调用 `project/*`、`thread/*`；消息使用 `codex queue`。入队成功后，匹配本机桌面时通过 `codex://threads/wake/<id>` 请求后台恢复目标会话，不添加第二条消息、不切换当前聊天。该入口依赖客户端版本；请求成功只表示进程入口受理，`desktopActivation.confirmed` 仍为 `false`。没有匹配入口或请求失败时保留原入队 ID 和警告，不应重发。配置 `codexSocket` 可改用已运行 daemon 的 `app-server proxy`。
 - Codex 项目管理依赖本机实验性 app-server 协议；旧版本缺少接口会返回错误。
-- Codex 默认列表隐藏新建空会话。桥保留自己创建的会话 ID，并通过 `thread/read` 验证和补全列表；归档以服务器列表为准。这个索引用于列出会话，不是默认发送目标。GUI 是否显示空会话由客户端决定。
+- Codex 默认列表隐藏新建空会话。桥保留自己创建的会话 ID，并通过 `thread/read` 验证和补全列表；归档以服务器列表为准。这个索引用于列出会话，不是默认发送目标，也不被 Codex 侧栏读取。创建返回 `created: true`、`backendCreated: true`、`completed: false`；`session.desktopSync.nativeListVisible` 为原生列表核验结果（失败为 `null`），`state` 为 `listed`、`not-listed` 或 `unverified`。`liveUiVerified: false` 明确没有读取屏幕，`listed` 也不能当作当前窗口已经显示。匹配本机桌面时 `openUrl` 可打开已有会话；创建本身不自动导航、不制造开场消息。发送后请求后台唤起，由客户端消费队列后形成实际聊天历史。
 - DSH 网关仅支持本机回环地址。目录创建、回答文件共享和两个客户端须处于同一用户文件系统中。
 - 创建与改名分步执行；若创建后改名失败，错误包含已创建对象 ID，避免重复创建。
 - 问答依赖当前进程等待和本地短期问题状态；成功、取消、超时及发送失败均清理该问题目录。崩溃遗留在最多 900 秒有效期后由下次调用或启动回收；进程重启后的任务恢复、跨主机传输、自动循环对话终止策略尚未实现。避免双方同时阻塞等待对方回答。

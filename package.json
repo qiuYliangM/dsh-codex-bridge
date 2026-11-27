@@ -1,6 +1,6 @@
 {
   "name": "peerbridge-dsh-plugin",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "DSH Codex Bridge：仅在 DSH 安装的双向会话与工程协作插件",
   "type": "module",
   "main": "src/index.js",

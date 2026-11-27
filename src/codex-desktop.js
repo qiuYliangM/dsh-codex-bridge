@@ -18,17 +18,41 @@ export function desktopExecutable(options = {}) {
   return existsSync('/usr/bin/chatgpt') && readDesktopProjects().available ? '/usr/bin/chatgpt' : null
 }
 
+export function desktopSessionExecutable(options = {}) {
+  // A manually configured executable may be useful for project registration,
+  // but it does not prove that this desktop owns a remote or isolated thread.
+  if (readConfig().codexSocket
+    || (options.codexHome && resolve(options.codexHome) !== join(homedir(), '.codex'))
+    || (process.env.CODEX_HOME && resolve(process.env.CODEX_HOME) !== join(homedir(), '.codex'))) return null
+  return desktopExecutable(options)
+}
+
 export async function openDesktopProject(executable, path, { signal } = {}) {
-  signal?.throwIfAborted()
   const url = new URL('codex://new')
   url.searchParams.set('path', path)
+  return launchDesktopUrl(executable, url.href, signal)
+}
+
+export function desktopSessionUrl(sessionId, { wake = false } = {}) {
+  if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(sessionId)) throw new Error('Codex 桌面会话 ID 必须是 UUID')
+  return `codex://threads/${wake ? 'wake/' : ''}${sessionId}`
+}
+
+export function wakeDesktopSession(executable, sessionId, { signal } = {}) {
+  // The desktop's wake route resumes only a thread with queued work. It does
+  // not navigate, select another chat, or add a second copy of the message.
+  return launchDesktopUrl(executable, desktopSessionUrl(sessionId, { wake: true }), signal)
+}
+
+async function launchDesktopUrl(executable, url, signal) {
+  signal?.throwIfAborted()
   const env = { ...process.env }
   // DSH runs Node through Electron; do not pass its Node flag to the GUI.
   delete env.ELECTRON_RUN_AS_NODE
   await new Promise((resolve, reject) => {
-    const cli = cliCommand(executable, [url.href])
+    const cli = cliCommand(executable, [url])
     const child = spawn(cli.command, cli.args, { env, detached: true, stdio: 'ignore' })
-    child.once('error', error => reject(new Error(`Codex 桌面工程入口失败: ${error.message}`)))
+    child.once('error', error => reject(new Error(`Codex 桌面入口失败: ${error.message}`)))
     child.once('spawn', () => { child.unref(); resolve() })
   })
 }

@@ -1,6 +1,6 @@
 import { runTool, toolDefinitions } from './tools.js'
 
-export const VERSION = '0.5.2'
+export const VERSION = '0.5.3'
 const versions = new Set(['2025-03-26', '2025-06-18', '2025-11-25'])
 
 export function toolSchema(parameters) {

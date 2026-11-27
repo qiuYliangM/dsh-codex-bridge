@@ -13,7 +13,7 @@ import { PeerOperations } from '../src/operations.js'
 import { runTool, toolDefinitions } from '../src/tools.js'
 import { DshAdapter, CodexAdapter } from '../src/adapters.js'
 import { queueToCodex } from '../src/codex-client.js'
-import { desktopProjectStatus, readDesktopProjects, waitForDesktopProject, workspaceCreationReceipt } from '../src/codex-desktop.js'
+import { desktopProjectStatus, desktopSessionUrl, readDesktopProjects, waitForDesktopProject, workspaceCreationReceipt } from '../src/codex-desktop.js'
 import { cliCommand } from '../src/cli-command.js'
 
 const root = resolve(import.meta.dirname, '..')
@@ -221,6 +221,81 @@ test('Codex queue receipts support both session and thread output formats', asyn
   }
 })
 
+test('Codex desktop URLs identify an existing thread without a prompt or a different target', () => {
+  const id = 'abcdefab-1234-1234-1234-abcdefabcdef'
+  assert.equal(desktopSessionUrl(id), `codex://threads/${id}`)
+  assert.equal(desktopSessionUrl(id, { wake: true }), `codex://threads/wake/${id}`)
+  for (const invalid of ['new', `${id}?prompt=run`, `${id}/other`, '../new']) assert.throws(() => desktopSessionUrl(invalid), /UUID/)
+})
+
+test('Codex creation distinguishes native-list visibility from bridge-only discovery, even if the probe fails', async t => {
+  const directory = sandbox(t)
+  writeFileSync(join(directory, 'config.json'), JSON.stringify({ codexDesktopBin: false }))
+  const id = 'abcdefab-1234-1234-1234-abcdefabcdef'
+  for (const mode of ['hidden', 'listed', 'failed']) {
+    const calls = []
+    const adapter = new CodexAdapter()
+    adapter.workspaces = async () => [{ workspaceId: 'w', path: directory }]
+    adapter.rpc = async run => run({ async call(method, params) {
+      calls.push({ method, params })
+      if (method === 'thread/start') return { thread: { id, cwd: directory, projectId: 'w' } }
+      if (method === 'thread/list') {
+        if (mode === 'failed') throw new Error('list unavailable')
+        return { data: mode === 'listed' ? [{ id }] : [], nextCursor: null }
+      }
+      return {}
+    } })
+    const result = await new PeerOperations('codex', { adapter }).execute('peer_create_session', { workspace: 'w', title: 'Task' })
+    assert.equal(result.created, true)
+    assert.equal(result.backendCreated, true)
+    assert.equal(result.completed, false)
+    assert.equal(result.session.sessionId, id)
+    assert.equal(result.session.desktopSync.state, { hidden: 'not-listed', listed: 'listed', failed: 'unverified' }[mode])
+    assert.equal(result.session.desktopSync.liveUiVerified, false)
+    assert.match(result.warning, /不要.*创建/)
+    assert.equal(calls.filter(x => x.method === 'thread/start').length, 1)
+    assert.ok(!calls.some(x => x.method === 'turn/start'))
+  }
+})
+
+test('Codex sends queue once before requesting a background desktop wake and retain acceptance on wake failure', async t => {
+  const directory = sandbox(t)
+  const queueLog = join(directory, 'queue.jsonl'), wakeLog = join(directory, 'wake.json')
+  const executable = join(directory, 'codex-queue.mjs'), desktop = join(directory, 'desktop.mjs')
+  const messageId = '12345678-1234-1234-1234-123456789abc', id = 'abcdefab-1234-1234-1234-abcdefabcdef'
+  writeFileSync(executable, `import{appendFileSync}from'node:fs';appendFileSync(${JSON.stringify(queueLog)},JSON.stringify(process.argv.slice(2))+'\\n');console.log('Queued message ${messageId} for thread ${id}.')\n`)
+  writeFileSync(desktop, `import{existsSync,writeFileSync}from'node:fs';writeFileSync(${JSON.stringify(wakeLog)},JSON.stringify({args:process.argv.slice(2),queuedFirst:existsSync(${JSON.stringify(queueLog)}),nodeFlag:process.env.ELECTRON_RUN_AS_NODE||null}))\n`)
+  const previousFlag = process.env.ELECTRON_RUN_AS_NODE
+  process.env.ELECTRON_RUN_AS_NODE = '1'
+  t.after(() => { if (previousFlag === undefined) delete process.env.ELECTRON_RUN_AS_NODE; else process.env.ELECTRON_RUN_AS_NODE = previousFlag })
+  writeFileSync(join(directory, 'config.json'), JSON.stringify({ codexBin: executable, codexDesktopBin: desktop }))
+  const adapter = new CodexAdapter()
+  const requested = await adapter.send({ sessionId: id }, 'test')
+  assert.equal(requested.messageId, messageId)
+  assert.deepEqual(requested.desktopActivation, { state: 'requested', confirmed: false })
+  for (let i = 0; i < 100 && !existsSync(wakeLog); i++) await new Promise(resolve => setTimeout(resolve, 10))
+  assert.deepEqual(JSON.parse(readFileSync(wakeLog)), { args: [`codex://threads/wake/${id}`], queuedFirst: true, nodeFlag: null })
+  writeFileSync(join(directory, 'config.json'), JSON.stringify({ codexBin: executable, codexDesktopBin: join(directory, 'missing-desktop') }))
+  const failed = await adapter.send({ sessionId: id }, 'second')
+  assert.equal(failed.state, 'queued')
+  assert.equal(failed.messageId, messageId)
+  assert.equal(failed.desktopActivation.state, 'failed')
+  assert.match(failed.warning, /不要重复发送/)
+  writeFileSync(join(directory, 'config.json'), JSON.stringify({ codexBin: executable, codexDesktopBin: false }))
+  const unavailable = await adapter.send({ sessionId: id }, 'third')
+  assert.equal(unavailable.desktopActivation.state, 'unavailable')
+  assert.equal(unavailable.messageId, messageId)
+  rmSync(wakeLog)
+  writeFileSync(join(directory, 'config.json'), JSON.stringify({ codexBin: executable, codexDesktopBin: desktop, codexSocket: join(directory, 'remote.sock') }))
+  const remote = await adapter.send({ sessionId: id }, 'remote')
+  assert.equal(remote.desktopActivation.state, 'unavailable')
+  writeFileSync(join(directory, 'config.json'), JSON.stringify({ codexBin: executable, codexDesktopBin: desktop }))
+  const isolated = await new CodexAdapter({ codexHome: join(directory, 'isolated-codex') }).send({ sessionId: id }, 'isolated')
+  assert.equal(isolated.desktopActivation.state, 'unavailable')
+  assert.equal(existsSync(wakeLog), false, 'Never wake a different desktop for a remote or isolated target')
+  assert.equal(readFileSync(queueLog, 'utf8').trim().split('\n').length, 5)
+})
+
 
 
 
@@ -349,6 +424,8 @@ createInterface({input:process.stdin}).on('line',line=>{
   await adapter.renameWorkspace(first.workspace.workspaceId, 'Renamed')
   const session = await adapter.createSession(first.workspace, { title: 'Task' })
   assert.equal((await adapter.sessions())[0].title, 'Task')
+  assert.equal(session.desktopSync.nativeListVisible, false)
+  assert.equal((await adapter.sessions())[0].desktopSync.state, 'not-listed')
   await adapter.archiveSession(session.sessionId, true)
   assert.equal((await adapter.sessions()).length, 0)
   await adapter.archiveSession(session.sessionId, false)

@@ -175,7 +175,7 @@ async function httpFixture(t, options = {}) {
   const init = async () => {
     const response = await post({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } })
     assert.equal(response.status, 200)
-    assert.equal((await response.json()).result.serverInfo.version, '0.5.2')
+    assert.equal((await response.json()).result.serverInfo.version, '0.5.3')
     return response.headers.get('mcp-session-id')
   }
   return { post, init, origin, token, transport }

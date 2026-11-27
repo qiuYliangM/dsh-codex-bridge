@@ -14,10 +14,10 @@ export const operationTools = [
   ['peer_rename_workspace', 'Rename an explicitly identified peer backend project; does not move its directory. Codex reports completed:false when its desktop title has not synchronized.', {
     workspace: workspaceParameter, title: { type: 'string', required: true },
   }],
-  ['peer_sessions', 'List sessions belonging to the explicitly supplied peer workspace. Use archived: true to list archived sessions.', {
+  ['peer_sessions', 'List sessions belonging to the explicitly supplied peer workspace. Use archived: true to list archived sessions. Codex desktopSync distinguishes the native list from bridge-only empty sessions; it does not verify the live UI.', {
     workspace: workspaceParameter, archived: { type: 'boolean' },
   }],
-  ['peer_create_session', 'Create an empty session in the explicitly supplied registered project. Returns its ID; no prompt is sent and no routing default is saved.', {
+  ['peer_create_session', 'Create an empty session in the explicitly supplied registered project. Returns its ID; no prompt is sent and no routing default is saved. Codex may hide empty sessions: created:true confirms backend creation, while completed:false and desktopSync report unverified UI visibility. Do not create duplicates; use the returned ID for sending, or open desktopSync.openUrl if available.', {
     workspace: workspaceParameter, title: { type: 'string' },
   }],
   ['peer_rename_session', 'Rename the explicitly identified peer session. It must belong to the supplied workspace.', {
@@ -93,7 +93,13 @@ export class PeerOperations {
       }
       case 'peer_create_session': {
         const workspace = await this.workspace(args.workspace)
-        return { created: true, session: await this.adapter.createSession(workspace, args) }
+        const session = await this.adapter.createSession(workspace, args)
+        return { created: true, session, ...(this.peer === 'codex' ? {
+          backendCreated: true, completed: false,
+          warning: session.desktopSync?.nativeListVisible === false
+            ? '空会话已在后台创建，但 Codex 原生列表尚未收录，桥接列表不等于侧栏。请使用已返回的会话 ID；发送后会请求唤起匹配的本机桌面。不要重复创建。'
+            : '会话已在后台创建；尚未核验 Codex 实时界面，不要报告侧栏同步完成或重复创建。',
+        } : {}) }
       }
       case 'peer_rename_session': {
         const target = await this.target(args)
